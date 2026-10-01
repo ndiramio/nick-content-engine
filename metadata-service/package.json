@@ -1,0 +1,1 @@
+{"name":"nick-video-metadata","private":true,"type":"module","engines":{"node":"24.x"},"scripts":{"start":"node server.js","test":"node --test","lint":"node --check server.js"}}
