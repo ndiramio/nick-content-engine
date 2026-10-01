@@ -1,0 +1,21 @@
+{
+  "status": "BRIEF",
+  "dryRun": true,
+  "source": {"videoId": null, "url": null, "title": null, "publishedAt": null, "captionStatus": "NOT_REVIEWED"},
+  "reader": null,
+  "readerQuestion": null,
+  "searchIntent": null,
+  "proposedQuery": null,
+  "queryEvidence": {"basis": "EDITORIAL_HYPOTHESIS", "searchVolume": null, "competition": null, "searchConsoleReviewed": false},
+  "scope": null,
+  "originalValue": null,
+  "thesis": {"text": null, "verifiedAgainstSource": false},
+  "metadata": {"seoTitle": null, "headline": null, "metaDescription": null, "slug": null, "status": "PROVISIONAL"},
+  "outline": [],
+  "sourceNotesPath": null,
+  "articlePath": null,
+  "relatedPageCandidates": [],
+  "unresolvedChecks": ["Review captions and attribution", "Verify claims", "Confirm title and description match final draft", "Review authorship and automation disclosure", "Nick review of exact revision"],
+  "review": {"reviewer": null, "reviewedAt": null, "revision": null, "approved": false},
+  "publication": {"authorized": false, "publishedAt": null, "url": null}
+}

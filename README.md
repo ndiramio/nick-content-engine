@@ -225,4 +225,19 @@ The initial official pilot retrieved all three tracks; the summary and sample-qu
 notes are in `reports/official-caption-pilot-2026-10-01.json`. Two tracks contain rolling
 repeated lines. Word counts are raw cue counts, not deduplicated spoken-word counts.
 A standard track is not proof of human authorship; `isGenerated` reflects only the
-API ASR flag. Caption cleanup and full editorial review remain future work.
+API ASR flag. The initial three caption files have been cleaned into private editorial
+artifacts with raw sources preserved. Audiovisual attribution checks and final editorial
+review remain pending.
+
+## Editorial and search workflow
+
+Manual article work follows [the editorial and search standard](docs/editorial-standard.md)
+and uses [the brief template](docs/article-brief-template.json). It requires a reader
+question, source-backed argument, accurate metadata, attribution checks, and a recorded
+review of the exact draft. Search phrases are hypotheses until supported by evidence;
+there is no Google quality score or ranking guarantee.
+
+Private drafts, cleanup artifacts, source notes, and SEO briefs live under ignored
+`data/editorial-review/`. This manual workflow is separate from the detector and caption
+pilot. `ARTICLE` is only a classification candidate. There is no automatic drafting,
+quality approval, Shopify write, or publishing step in the scheduled job.
