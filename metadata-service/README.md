@@ -8,7 +8,7 @@ Run with Node 24 and `npm start`. Required server variables are `YOUTUBE_API_KEY
 
 Successful metadata is cached for 24 hours, missing videos for ten minutes, and concurrent lookups coalesce. Each instance permits at most 120 uncached lookups per hour and ten concurrent upstream requests. Browser origins are limited to Nick's storefront domains. CORS is not an authentication boundary; the bounded global lookup budget also applies to clients without an Origin header. Cache is bounded and intentionally disposable across restarts. Run one replica.
 
-Deploy this directory as a separate service with root directory `/metadata-service`, config file `/metadata-service/railway.json`, no cron schedule, and `/health` healthcheck. The root Railway configuration remains the hourly dry-run detector configuration.
+Deploy this directory as a separate service with root directory `/metadata-service`, no cron schedule, and `/health` healthcheck. Use Railway service settings for this service. The root Railway configuration remains the hourly dry-run detector configuration.
 
 The theme uses the source video date only in its visible date line; article publication structured metadata remains the article date. Failed lookups retain the article date. Displayed video calendar dates use UTC consistently across visitors.
 
