@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 import { classify, detect, seconds, youtube } from '../src/index.js';
 import { openStore, statePath } from '../src/store.js';
 
@@ -49,6 +50,50 @@ test('incidental promo or trailer mentions do not override long commentary', () 
   for (const title of ['Trailer reaction and analysis', 'A review of the movie trailer', 'My new clip breakdown']) {
     assert.equal(classify(video('PT12M', title, { description: 'Use my promo code\nWatch the trailer below' })).decision, 'ARTICLE');
   }
+});
+test('generic promo tags alone do not override long commentary', () => {
+  for (const tag of ['trailer', 'preview', 'promo', 'teaser', 'new trailer']) {
+    assert.equal(classify(video('PT10M', 'A commentary episode', { tags: [tag] })).decision, 'ARTICLE');
+  }
+  for (const [duration, title, tags] of [
+    ['PT1H1M33S', 'Comparing Not Cool and Hollidaysburg', ['trailer']],
+    ['PT31M58S', 'Shane Dawson on The Chair', ['trailer']],
+    ['PT9M48S', 'Catching Kelce Episode 2 - Clip Breakdown', ['reality show trailer', 'preview']],
+  ]) assert.equal(classify(video(duration, title, { tags })).decision, 'ARTICLE');
+  assert.equal(classify(video('PT10M', 'Official Trailer', { tags: ['trailer'] })).decision, 'NEEDS_REVIEW');
+});
+
+test('reviewed corrections are scoped, audited, and idempotent across restarts', t => {
+  const path = fixture(t);
+  let store = openStore(path);
+  const row = (videoId, durationSeconds) => ({ videoId, title: 'Existing title', duration: 'PT10M',
+    durationSeconds, classification: 'NEEDS_REVIEW', reason: 'strong_promo_metadata', processedAt: 'original-time' });
+  for (const [id, duration] of [['LgWKZ3Zkmgw', 3693], ['GcZ0PXabwt0', 1918], ['37CUChtKyAg', 588], ['unreviewed', 600]]) {
+    store.record(row(id, duration));
+  }
+  assert.equal(store.applyReviewedCorrections().length, 3);
+  assert.deepEqual(store.classificationCounts(), { ARTICLE: 3, NEEDS_REVIEW: 1 });
+  assert.deepEqual(store.applyReviewedCorrections(), []);
+  store.close();
+  store = openStore(path);
+  assert.deepEqual(store.applyReviewedCorrections(), []);
+  assert.equal(store.has('LgWKZ3Zkmgw'), true);
+  store.close();
+  const db = new DatabaseSync(path);
+  try {
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM classification_corrections').get().n, 3);
+    assert.equal(db.prepare('SELECT processed_at FROM processed_videos WHERE video_id = ?').get('LgWKZ3Zkmgw').processed_at, 'original-time');
+  } finally { db.close(); }
+});
+
+test('review correction does not overwrite changed metadata or unrelated decisions', t => {
+  const store = openStore(fixture(t));
+  t.after(() => store.close());
+  store.record({ videoId: 'LgWKZ3Zkmgw', title: 'Changed', duration: 'PT8M', durationSeconds: 480,
+    classification: 'NEEDS_REVIEW', reason: 'strong_promo_metadata', processedAt: 'original-time' });
+  store.record({ videoId: 'GcZ0PXabwt0', title: 'Changed', duration: 'PT31M58S', durationSeconds: 1918,
+    classification: 'NEEDS_REVIEW', reason: 'manual_review', processedAt: 'original-time' });
+  assert.deepEqual(store.applyReviewedCorrections(), []);
 });
 test('missing/malformed durations are reviewed and ISO day/hour values parse', () => {
   for (const duration of [undefined, '', 'junkPT3M', 'PT3Mgarbage', 'P', 'PT', '-PT1M']) {

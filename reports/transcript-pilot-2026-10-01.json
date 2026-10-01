@@ -1,0 +1,21 @@
+{
+  "event": "transcript_pilot_completed",
+  "dryRun": true,
+  "checkedAt": "2026-10-01T11:16:26.777154+00:00",
+  "provider": "youtube-transcript-api/1.2.4",
+  "videos": [
+    {
+      "videoId": "LgWKZ3Zkmgw",
+      "status": "ACCESS_BLOCKED"
+    },
+    {
+      "videoId": "GcZ0PXabwt0",
+      "status": "NOT_ATTEMPTED_AFTER_ACCESS_BLOCK"
+    },
+    {
+      "videoId": "37CUChtKyAg",
+      "status": "NOT_ATTEMPTED_AFTER_ACCESS_BLOCK"
+    }
+  ],
+  "retrieved": 0
+}

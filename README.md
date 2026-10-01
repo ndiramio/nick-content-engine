@@ -1,8 +1,9 @@
 # Nick Content Engine
 
 Private automation for NickDiRamio.com. This phase is a **dry-run YouTube detector**.
-It saves classification results, but does not retrieve transcripts, generate articles,
-connect to Shopify, or publish anything. Dry-run is hardcoded; there is no publishing switch.
+The scheduled detector saves classification results. A separate, manually invoked
+three-video caption pilot is available for evaluation. Neither path generates articles,
+connects to Shopify, or publishes anything. Dry-run is hardcoded; there is no publishing switch.
 
 ## Architecture and persistent state
 
@@ -34,7 +35,14 @@ but will not reprocess the video. Classification computation may repeat before a
 successful commit. This is not a guarantee of exactly-once external side effects;
 future publishing would require a separate transactional delivery design.
 
-Saved videos are not reclassified when metadata or rules change. Unavailable videos
+Saved videos are not generally reclassified when metadata or rules change. The reviewed
+2026-10-01 correction updates only `LgWKZ3Zkmgw`, `GcZ0PXabwt0`, and `37CUChtKyAg`
+from the original promo-review decision to `ARTICLE`, conditional on their original
+reason and duration still matching. The update and audit record in
+`classification_corrections` commit together. It preserves the original processing
+timestamp and duplicate history and is safe to run repeatedly. Startup logs include
+`classification_corrected` events and a `saved_classifications` count snapshot.
+Unavailable videos
 and live/upcoming broadcasts are deferred without marking them processed, allowing
 later runs to use final metadata. Missing/invalid durations are saved for manual review.
 
@@ -62,11 +70,14 @@ API failures log only sanitized status/errors, never API response bodies or requ
 | 8+ minutes with strong promo/teaser/trailer/preview metadata | `NEEDS_REVIEW` |
 | Missing or invalid duration | `NEEDS_REVIEW` |
 
-Strong metadata means an explicit format label: a standalone title/tag such as
+Strong metadata means an explicit format label: a standalone title such as
 `Official Trailer`, a title suffix such as `My show | Teaser`, a title prefix like
 `Preview: next episode`, a format hashtag in the title, or an opening description
 that identifies the video as a promo/teaser/trailer/preview. Ordinary incidental
 mentions such as `promo code` or `trailer reaction` do not alone trigger the override.
+Generic tags (`trailer`, `preview`, `promo`, `teaser`, or `new trailer`) alone are
+insufficient: commentary videos may use them as topic tags. Standalone tags explicitly
+qualified with `official` or `exclusive` still count as a strong signal.
 This is a conservative heuristic, not semantic content analysis. Duration rules take
 priority for videos under eight minutes. `IGNORE_PROMO` is no longer used.
 
@@ -120,3 +131,42 @@ needed. They cover duration boundaries, promo metadata, invalid durations, dupli
 persistence in a fresh process, unique inserts from separate connections, pagination,
 partial-run recovery, live/unavailable video deferral, safe errors, and Railway storage
 guards. `lint` runs Node syntax checks; this project has no external lint framework.
+
+## Manual transcript pilot
+
+`scripts/transcript_pilot.py` attempts English captions for exactly the three reviewed
+commentary videos above, sequentially. It is **not called by `npm start` or cron**.
+Run it in an isolated Railway sandbox with Python 3.10+:
+
+```sh
+python3 -m venv /tmp/transcript-pilot-venv
+/tmp/transcript-pilot-venv/bin/pip install -r scripts/requirements-pilot.txt
+/tmp/transcript-pilot-venv/bin/python scripts/transcript_pilot.py --output-dir data/transcript-pilot
+```
+
+The optional dependency is `youtube-transcript-api==1.2.4`. It uses public, unofficial
+YouTube endpoints and needs no API key, account cookies, or OAuth credentials. This
+is an access/quality pilot, not yet a production transcript service. Cloud IPs may be
+blocked. An access block stops further requests and is reported as `ACCESS_BLOCKED`;
+remaining videos are `NOT_ATTEMPTED_AFTER_ACCESS_BLOCK`. There are no proxy/cookie
+workarounds or automatic retries. Missing English tracks, disabled captions, unavailable
+videos, invalid transcripts, and other fetch failures have separate statuses.
+
+Successful outputs preserve timed segments, source video ID/URL, language, whether
+captions were generated, provider version, retrieval time, and basic length metrics.
+Every transcript still needs editorial review for accuracy, completeness, speaker
+identity, and quoted movie/TV footage before it can support an article. Operational
+logs include summaries, never transcript text. Existing successful files are reused.
+`summary.json` records the pilot outcomes; exit code 0 means all three were retrieved,
+2 means at least one was not, and 1 indicates a configuration/storage failure.
+
+Pilot files stay outside Git and the detector database. Copy wanted results out of
+the ephemeral sandbox before its idle timeout; they do not persist on the production
+volume automatically. Only the classifier correction changes production state.
+Run the offline pilot tests with `npm run test:pilot` (Python standard library only).
+
+If public-caption access is blocked, the supported API alternative requires a separate
+YouTube OAuth grant from an account allowed to edit the videos; the existing API key
+cannot download captions. That authorization is not configured by this pilot.
+References: [public-caption library](https://github.com/jdepoix/youtube-transcript-api),
+[official caption downloads](https://developers.google.com/youtube/v3/docs/captions/download).

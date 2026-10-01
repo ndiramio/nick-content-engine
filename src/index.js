@@ -24,6 +24,9 @@ export function classify(video) {
   const { title = '', description = '', tags = [] } = video.snippet || {};
   const label = '(?:promo|teaser|trailer|preview)';
   const standalone = new RegExp(`^(?:(?:official|exclusive|new)\\s+)?${label}(?:\\s+\\d+)?[.!]?$`, 'i');
+  // Generic tags describe topics too: three reviewed commentary videos used
+  // "trailer" or "preview" tags. A tag alone must explicitly label the format.
+  const qualifiedTag = new RegExp(`^(?:official|exclusive)\\s+${label}(?:\\s+\\d+)?[.!]?$`, 'i');
   const explicit = new RegExp(`\\b(?:official|exclusive)\\s+${label}\\b|\\b${label}\\s+for\\b|#(?:promo|teaser|trailer|preview)\\b`, 'i');
   const suffix = new RegExp(`(?:\\s[-–—|:]\\s*|\\[|\\()(?:(?:official|exclusive|new)\\s+)?${label}(?:\\s+\\d+)?[\\])!.]*$`, 'i');
   const lead = new RegExp(`^(?:(?:official|exclusive|new)\\s+)?${label}\\s*[:|–—-]`, 'i');
@@ -31,7 +34,7 @@ export function classify(video) {
   const firstLine = description.trim().split(/\r?\n/)[0];
   if (standalone.test(title.trim()) || explicit.test(title) || suffix.test(title.trim())
       || lead.test(title.trim()) || selfDescription.test(firstLine)
-      || tags.some(tag => standalone.test(tag.trim()))) {
+      || tags.some(tag => qualifiedTag.test(tag.trim()))) {
     return result('NEEDS_REVIEW', 'strong_promo_metadata');
   }
   return result('ARTICLE', 'duration_at_least_8_minutes');
@@ -125,6 +128,10 @@ export async function main(env = process.env) {
   }
   const store = openStore(statePath(env));
   try {
+    for (const correction of store.applyReviewedCorrections()) {
+      log({ event: 'classification_corrected', ...correction });
+    }
+    log({ event: 'saved_classifications', counts: store.classificationCounts() });
     return await detect({ key: env.YOUTUBE_API_KEY, channelId: env.YOUTUBE_CHANNEL_ID, store });
   } finally {
     store.close();
