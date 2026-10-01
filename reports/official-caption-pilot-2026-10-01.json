@@ -1,0 +1,62 @@
+{
+  "event": "official_caption_pilot_completed",
+  "dryRun": true,
+  "checkedAt": "2026-10-01T11:41:57.774Z",
+  "videos": [
+    {
+      "videoId": "LgWKZ3Zkmgw",
+      "status": "RETRIEVED",
+      "provider": "youtube-data-api-v3",
+      "sourceUrl": "https://www.youtube.com/watch?v=LgWKZ3Zkmgw",
+      "captionTrackId": "AUieDaZi8Zn1_curkvbjF0LaETm3kt3Z-lRrU5Ed2yyfMPpfPeE",
+      "language": "en",
+      "isGenerated": false,
+      "retrievedAt": "2026-10-01T11:41:55.863Z",
+      "videoDurationSeconds": 3693,
+      "segmentCount": 3516,
+      "wordCount": 38034,
+      "lastCaptionEndSeconds": 3693.809,
+      "needsEditorialReview": true
+    },
+    {
+      "videoId": "GcZ0PXabwt0",
+      "status": "RETRIEVED",
+      "provider": "youtube-data-api-v3",
+      "sourceUrl": "https://www.youtube.com/watch?v=GcZ0PXabwt0",
+      "captionTrackId": "AUieDaYKCcEmQZBmV39XNoJWqOq7VIsXiF4_nLero0xoP0l21kRItdut",
+      "language": "en",
+      "isGenerated": false,
+      "retrievedAt": "2026-10-01T11:41:56.697Z",
+      "videoDurationSeconds": 1918,
+      "segmentCount": 1037,
+      "wordCount": 7568,
+      "lastCaptionEndSeconds": 1917.333,
+      "needsEditorialReview": true
+    },
+    {
+      "videoId": "37CUChtKyAg",
+      "status": "RETRIEVED",
+      "provider": "youtube-data-api-v3",
+      "sourceUrl": "https://www.youtube.com/watch?v=37CUChtKyAg",
+      "captionTrackId": "AUieDaZ4Wf7CEi8Kw6MMxXK4k644_pYLKZeP2ZAN5BWFovZ6DNU",
+      "language": "en",
+      "isGenerated": false,
+      "retrievedAt": "2026-10-01T11:41:57.771Z",
+      "videoDurationSeconds": 588,
+      "segmentCount": 564,
+      "wordCount": 6088,
+      "lastCaptionEndSeconds": 586.91,
+      "needsEditorialReview": true
+    }
+  ],
+  "retrieved": 3,
+  "qualityReview": {
+    "method": "Short opening and midpoint samples, duration coverage, and cue inspection; not a full editorial review.",
+    "notes": [
+      "LgWKZ3Zkmgw and 37CUChtKyAg contain rolling repeated caption lines. Raw word counts include repeats and are not unique spoken-word counts.",
+      "GcZ0PXabwt0 samples read more cleanly; all tracks still need speaker attribution and factual/editorial review.",
+      "isGenerated reflects the API trackKind ASR flag only; a standard track does not establish human authorship.",
+      "Raw VTT and timed JSON are preserved privately. No transcript normalization, article generation, or publishing was performed."
+    ]
+  }
+}

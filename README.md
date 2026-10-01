@@ -170,3 +170,59 @@ YouTube OAuth grant from an account allowed to edit the videos; the existing API
 cannot download captions. That authorization is not configured by this pilot.
 References: [public-caption library](https://github.com/jdepoix/youtube-transcript-api),
 [official caption downloads](https://developers.google.com/youtube/v3/docs/captions/download).
+
+## Owner-authorized caption pilot
+
+The public pilot encountered a cloud-IP block. `npm run pilot:captions` provides a
+separate official YouTube Data API pilot for the same three videos. It is manual;
+the hourly detector still only classifies metadata. No YouTube changes, Shopify
+writes, or publishing are performed.
+
+Required variables for this optional command:
+
+| Variable | Purpose |
+| --- | --- |
+| `YOUTUBE_OAUTH_CLIENT_ID` | Google web OAuth client ID |
+| `YOUTUBE_OAUTH_CLIENT_SECRET` | Google web OAuth client secret |
+| `YOUTUBE_OAUTH_REFRESH_TOKEN` | Owner-authorized offline caption access |
+| `YOUTUBE_CHANNEL_ID` | Expected channel, checked before caption requests |
+| `CAPTION_OUTPUT_DIR` | Optional output directory; defaults to ignored `data/official-caption-pilot` |
+
+Keep credentials in Railway variables or a private local environment, never Git or
+logs. An ephemeral sandbox does not provide durable output storage: copy caption
+artifacts out before shutting it down, or explicitly use persistent storage when
+running outside a sandbox. Credentials must not be bundled with those artifacts.
+
+Google requires the `youtube.force-ssl` scope and permission to edit the videos for
+caption downloads. The pilot uses only channel/caption GET requests after refreshing
+its access token. It prefers a serving standard English track, falls back to automatic
+English captions, and preserves raw VTT plus timed JSON with provenance and an
+editorial-review flag. Successful files are reused on subsequent runs. Structured
+summary logs omit credentials and transcript text; missing tracks, denied access,
+invalid captions, wrong channel, and rate limits have separate failure statuses.
+Exit codes are 0 for three successes, 2 for incomplete retrieval, and 1 for a local
+configuration/storage failure. Mock API and VTT tests run under `npm test`.
+
+`scripts/oauth-setup-server.mjs` is an isolated, temporary authorization helper,
+never the production cron entrypoint. Set `OAUTH_BASE_URL` to its HTTPS origin,
+`YOUTUBE_CHANNEL_ID`, optional `PORT` (8080), and optional `OAUTH_SETUP_DIR`
+(`/tmp/nce-oauth`). Register the exact `/oauth/callback` URL on the Google web client.
+The helper writes a private `setup.json`; its phone sign-in link and administrative
+token are separate. Upload the Google client JSON via authenticated `POST /configure`,
+complete the Google sign-in, then collect credentials through authenticated
+`POST /collect` using the `X-Setup-Key` administrative header. It validates single-use
+state, PKCE, granted scope, and channel identity. Sessions expire after 30 minutes;
+authorization callbacks expire after 10 minutes. Shut down the helper after setup.
+Never share the administrative token or publish its setup directory.
+
+The Google app is currently External/Testing with the owner as a test user. Google
+expires refresh tokens issued in this mode after seven days for this scope, so this
+is sufficient for the pilot but needs a production OAuth configuration before a
+long-running caption workflow. See [Google token expiration rules](https://developers.google.com/identity/protocols/oauth2#expiration)
+and [web authorization](https://developers.google.com/identity/protocols/oauth2/web-server).
+
+The initial official pilot retrieved all three tracks; the summary and sample-quality
+notes are in `reports/official-caption-pilot-2026-10-01.json`. Two tracks contain rolling
+repeated lines. Word counts are raw cue counts, not deduplicated spoken-word counts.
+A standard track is not proof of human authorship; `isGenerated` reflects only the
+API ASR flag. Caption cleanup and full editorial review remain future work.

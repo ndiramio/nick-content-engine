@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",
-    "lint": "node --check src/index.js && node --check src/store.js && node --check test/detector.test.js",
+    "lint": "node --check src/index.js && node --check src/store.js && node --check scripts/oauth-setup-server.mjs && node --check scripts/official-caption-pilot.mjs && node --check test/detector.test.js && node --check test/oauth-setup.test.js && node --check test/official-caption-pilot.test.js",
+    "pilot:captions": "node scripts/official-caption-pilot.mjs",
     "test:pilot": "python3 -m unittest discover -s test -p \"test_*.py\""
   },
   "engines": {
