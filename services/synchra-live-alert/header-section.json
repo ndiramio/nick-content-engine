@@ -1,0 +1,11 @@
+{
+  "type": "synchra-live-alert",
+  "settings": {
+    "enabled": true,
+    "status_url": "https://synchra-live-alert-production.up.railway.app/status",
+    "editor_preview": true,
+    "background": "#17171b",
+    "text_color": "#f1e6d2",
+    "image_url": "https://cdn.shopify.com/s/files/1/0871/3420/8310/files/control-issues-live-now.png?v=1791914729&width=480"
+  }
+}

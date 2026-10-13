@@ -1,0 +1,1 @@
+{"name":"synchra-live-alert","private":true,"scripts":{"start":"bun index.ts","test":"bun test index.test.ts"}}
