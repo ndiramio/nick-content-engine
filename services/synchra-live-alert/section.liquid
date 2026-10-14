@@ -1,0 +1,119 @@
+{% if section.settings.enabled %}
+  <synchra-live-alert
+    class="synchra-live-alert"
+    data-endpoint="{{ section.settings.status_url | escape }}"
+    data-preview="{% if request.design_mode and section.settings.editor_preview %}true{% else %}false{% endif %}"
+    data-fallback-image="{{ section.settings.image_url | escape }}"
+    style="--synchra-background: {{ section.settings.background }}; --synchra-color: {{ section.settings.text_color }};"
+    hidden
+  >
+    <a class="synchra-live-alert__image-link" data-stream-image-link target="_blank" rel="noopener noreferrer" aria-label="{{ 'sections.synchra_live_alert.watch' | t }}">
+      <img class="synchra-live-alert__image" data-stream-image src="{{ section.settings.image_url | escape }}" alt="{{ 'sections.synchra_live_alert.image_alt' | t }}" width="160" height="160" loading="lazy" hidden>
+    </a>
+    <div class="synchra-live-alert__content" role="status" aria-live="polite">
+      <span class="synchra-live-alert__badge">{{ 'sections.synchra_live_alert.live' | t }}</span>
+      <span class="synchra-live-alert__message">{{ 'sections.synchra_live_alert.message' | t }}</span>
+      <span class="synchra-live-alert__title" data-stream-title></span>
+      <span class="synchra-live-alert__preview" data-preview-label hidden>{{ 'sections.synchra_live_alert.preview' | t }}</span>
+      <a class="synchra-live-alert__watch" data-stream-link target="_blank" rel="noopener noreferrer">{{ 'sections.synchra_live_alert.watch' | t }}<span class="synchra-live-alert__sr"> {{ 'accessibility.link_messages.new_window' | t }}</span></a>
+    </div>
+    <button class="synchra-live-alert__dismiss" type="button" aria-label="{{ 'sections.synchra_live_alert.dismiss' | t }}">&times;</button>
+  </synchra-live-alert>
+{% endif %}
+
+{% stylesheet %}
+  .synchra-live-alert[hidden], .synchra-live-alert [hidden] { display: none !important; }
+  .synchra-live-alert { display: flex; align-items: center; justify-content: center; gap: 24px; padding: 12px 24px; background: var(--synchra-background); color: var(--synchra-color); font: inherit; line-height: 1.4; }
+  .synchra-live-alert__image-link { flex: 0 0 auto; }
+  .synchra-live-alert__image { display: block; width: 160px; height: 160px; object-fit: contain; }
+  .synchra-live-alert__content { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; min-width: 0; max-width: 560px; }
+  .synchra-live-alert__badge { font-size: 11px; font-weight: 700; letter-spacing: .1em; border: 1px solid currentColor; border-radius: 100px; padding: 3px 9px; }
+  .synchra-live-alert__badge::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+  .synchra-live-alert__message { font-weight: 600; font-size: 18px; }
+  .synchra-live-alert__title { font-size: 13px; max-width: min(420px, 65vw); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .synchra-live-alert__watch { color: inherit; text-decoration: none; font-weight: 600; font-size: 14px; padding: 10px 16px; border: 1px solid currentColor; border-radius: 100px; }
+  .synchra-live-alert__dismiss { color: inherit; background: transparent; border: 0; font-size: 24px; line-height: 1; min-width: 44px; min-height: 44px; cursor: pointer; }
+  .synchra-live-alert__watch:focus-visible, .synchra-live-alert__dismiss:focus-visible, .synchra-live-alert__image-link:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+  .synchra-live-alert__preview { font-size: 11px; opacity: .8; }
+  .synchra-live-alert__sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  @media (max-width: 600px) { .synchra-live-alert { padding: 12px; gap: 10px; } .synchra-live-alert__image { width: 112px; height: 112px; } .synchra-live-alert__content { flex: 1 1 0; justify-content: flex-start; gap: 7px; } .synchra-live-alert__message { font-size: 14px; } .synchra-live-alert__title { flex-basis: 100%; max-width: 40vw; } .synchra-live-alert__watch { font-size: 12px; padding: 8px 10px; } .synchra-live-alert__dismiss { align-self: flex-start; flex: 0 0 32px; min-width: 32px; } }
+{% endstylesheet %}
+
+{% javascript %}
+  if (!customElements.get('synchra-live-alert')) {
+    customElements.define('synchra-live-alert', class extends HTMLElement {
+      connectedCallback() {
+        this.preview = this.dataset.preview === 'true';
+        this.dismissHandler = () => { this.dismissed = this.currentStream; try { sessionStorage.setItem('synchra-dismissed', this.currentStream); } catch {} this.hidden = true; };
+        this.querySelector('button').addEventListener('click', this.dismissHandler);
+        this.visibilityHandler = () => { clearTimeout(this.pollTimer); if (!document.hidden && !this.preview) this.refresh(); };
+        document.addEventListener('visibilitychange', this.visibilityHandler);
+        if (this.preview) {
+          this.querySelector('[data-preview-label]').hidden = false;
+          const link = this.querySelector('[data-stream-link]');
+          link.removeAttribute('href');
+          const image = this.querySelector('[data-stream-image]');
+          image.hidden = !image.getAttribute('src');
+          this.hidden = false;
+        } else { this.refresh(); }
+      }
+      disconnectedCallback() {
+        clearTimeout(this.pollTimer); clearTimeout(this.expiryTimer);
+        this.controller?.abort();
+        document.removeEventListener('visibilitychange', this.visibilityHandler);
+        this.querySelector('button')?.removeEventListener('click', this.dismissHandler);
+      }
+      async refresh() {
+        if (!this.isConnected || document.hidden || this.loading) return;
+        this.loading = true;
+        clearTimeout(this.expiryTimer);
+        this.controller = new AbortController();
+        const timeout = setTimeout(() => this.controller.abort(), 5000);
+        try {
+          const endpoint = new URL(this.dataset.endpoint);
+          if (endpoint.protocol !== 'https:') throw new Error('Invalid endpoint');
+          const response = await fetch(endpoint.href, { signal: this.controller.signal, cache: 'no-store', credentials: 'omit' });
+          if (!response.ok) throw new Error('Status unavailable');
+          const state = await response.json();
+          if (state.live !== true || !Number.isFinite(state.expiresAt) || state.expiresAt <= Date.now()) { this.hidden = true; return; }
+          const url = new URL(state.url);
+          if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Invalid stream URL');
+          this.currentStream = url.href + ':' + state.expiresAt;
+          let dismissed = this.dismissed;
+          try { dismissed = sessionStorage.getItem('synchra-dismissed') || dismissed; } catch {}
+          this.querySelector('[data-stream-title]').textContent = typeof state.title === 'string' ? state.title : '';
+          this.querySelector('[data-stream-link]').href = url.href;
+          this.querySelector('[data-stream-image-link]').href = url.href;
+          const image = this.querySelector('[data-stream-image]');
+          const imageUrl = new URL(state.image_url || this.dataset.fallbackImage);
+          if (imageUrl.protocol !== 'https:') throw new Error('Invalid image URL');
+          if (imageUrl.hostname === 'cdn.shopify.com') imageUrl.searchParams.set('width', '480');
+          image.src = imageUrl.href;
+          image.hidden = false;
+          this.hidden = dismissed === this.currentStream;
+          this.expiryTimer = setTimeout(() => { this.hidden = true; }, Math.min(state.expiresAt - Date.now(), 2147483647));
+        } catch { this.hidden = true; }
+        finally {
+          clearTimeout(timeout); this.loading = false;
+          if (this.isConnected && !document.hidden) this.pollTimer = setTimeout(() => this.refresh(), 30000);
+        }
+      }
+    });
+  }
+{% endjavascript %}
+
+{% schema %}
+{
+  "name": "Synchra live alert",
+  "enabled_on": { "groups": ["header"] },
+  "settings": [
+    { "type": "checkbox", "id": "enabled", "label": "Enable live alert", "default": true },
+    { "type": "url", "id": "status_url", "label": "Live status URL" },
+    { "type": "url", "id": "image_url", "label": "Default livestream image URL" },
+    { "type": "checkbox", "id": "editor_preview", "label": "Show sample in theme editor", "default": true },
+    { "type": "color", "id": "background", "label": "Background", "default": "#23393a" },
+    { "type": "color", "id": "text_color", "label": "Text", "default": "#f1e6d2" }
+  ],
+  "presets": [{ "name": "Synchra live alert" }]
+}
+{% endschema %}
