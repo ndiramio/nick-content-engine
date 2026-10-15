@@ -167,6 +167,18 @@ def api(path, key, body=None):
     return json.loads(raw) if raw else {}
 
 
+def verified_account(key):
+    account = api('/account', key)
+    if account.get('email', '').lower() != 'nick@nickdiramio.com':
+        raise ValueError('wrong_brevo_account')
+    expected = os.environ.get('EXPECTED_BREVO_ORGANIZATION_ID')
+    if not expected:
+        raise ValueError('brevo_organization_pin_required')
+    if str(account.get('organization_id', '')) != expected:
+        raise ValueError('wrong_brevo_organization')
+    return account
+
+
 def audience(key, list_id):
     contacts, offset = {}, 0
     while True:
@@ -182,13 +194,12 @@ def audience(key, list_id):
 
 def register_setup_event(db, key, articles):
     """Register fields using only an existing owner contact, once, without a send API."""
-    state = db.execute("SELECT value FROM metadata WHERE key='setup_event'").fetchone()
+    account = verified_account(key)
+    state_key = 'setup_event:' + str(account['organization_id'])
+    state = db.execute('SELECT value FROM metadata WHERE key=?', (state_key,)).fetchone()
     if state:
         log('setup_event_already_attempted', status=state[0])
         return
-    account = api('/account', key)
-    if account.get('email', '').lower() != 'nick@nickdiramio.com':
-        raise ValueError('wrong_brevo_account')
     contact = None
     for email in ('nick@nickdiramio.com', 'nickdiramio@gmail.com'):
         try:
@@ -208,19 +219,17 @@ def register_setup_event(db, key, articles):
     data['video_title'] = '[Setup preview] ' + data['video_title']
     # Do not retry a potentially accepted event after a timeout or container crash.
     with db:
-        db.execute("INSERT INTO metadata VALUES ('setup_event','uncertain')")
+        db.execute("INSERT INTO metadata VALUES (?,'uncertain')", (state_key,))
     api('/events', key, {'event_name': 'video_announcement_ready',
                         'identifiers': {'contact_id': int(contact['id'])},
                         'event_properties': data})
     with db:
-        db.execute("UPDATE metadata SET value='registered' WHERE key='setup_event'")
+        db.execute("UPDATE metadata SET value='registered' WHERE key=?", (state_key,))
     log('setup_event_registered', setupOnly=True)
 
 
 def deliver(db, key, list_id, max_events=100):
-    account = api('/account', key)
-    if account.get('email', '').lower() != 'nick@nickdiramio.com':
-        raise ValueError('wrong_brevo_account')
+    verified_account(key)
     recipients = audience(key, list_id)
     for vid, in db.execute("SELECT video_id FROM articles WHERE status='pending'").fetchall():
         with db:

@@ -16,6 +16,9 @@ def article(vid='abcdefghijk', published='2026-10-16T00:00:00+00:00'):
 
 class WorkerTests(unittest.TestCase):
     def setUp(self):
+        env = patch.dict(worker.os.environ, {'EXPECTED_BREVO_ORGANIZATION_ID': 'org-correct'})
+        env.start()
+        self.addCleanup(env.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.db = worker.database(Path(self.tmp.name) / 'test.sqlite')
 
@@ -56,7 +59,7 @@ class WorkerTests(unittest.TestCase):
 
     def mock_api(self, path, key, body=None):
         if path == '/account':
-            return {'email': 'nick@nickdiramio.com'}
+            return {'email': 'nick@nickdiramio.com', 'organization_id': 'org-correct'}
         if path.startswith('/contacts/lists/'):
             return {'contacts': [{'id': 1, 'email': 'test@example.com', 'emailBlacklisted': False},
                                  {'id': 2, 'email': 'blocked@example.com', 'emailBlacklisted': True}]}
@@ -113,7 +116,7 @@ class WorkerTests(unittest.TestCase):
             if path == '/contacts/nick%40nickdiramio.com':
                 return {'id': 5, 'email': 'nick@nickdiramio.com'}
             if path == '/account':
-                return {'email': 'nick@nickdiramio.com'}
+                return {'email': 'nick@nickdiramio.com', 'organization_id': 'org-correct'}
             if path == '/events':
                 return {}
             raise AssertionError(path)
@@ -129,16 +132,30 @@ class WorkerTests(unittest.TestCase):
     def test_setup_timeout_not_retried(self):
         def setup_api(path, key, body=None):
             if path == '/account':
-                return {'email': 'nick@nickdiramio.com'}
+                return {'email': 'nick@nickdiramio.com', 'organization_id': 'org-correct'}
             if path.startswith('/contacts/'):
                 return {'id': 5, 'email': 'nick@nickdiramio.com'}
             raise TimeoutError()
         with patch.object(worker, 'api', side_effect=setup_api):
             with self.assertRaises(TimeoutError):
                 worker.register_setup_event(self.db, 'secret', [article()])
-        with patch.object(worker, 'api') as api:
+        with patch.object(worker, 'api', return_value={'email': 'nick@nickdiramio.com', 'organization_id': 'org-correct'}) as api:
             worker.register_setup_event(self.db, 'secret', [article()])
-            api.assert_not_called()
+            self.assertEqual([c.args[0] for c in api.call_args_list], ['/account'])
+
+    def test_same_email_wrong_organization_rejected(self):
+        with patch.object(worker, 'api', return_value={'email': 'nick@nickdiramio.com', 'organization_id': 'wrong-org'}):
+            with self.assertRaisesRegex(ValueError, 'wrong_brevo_organization'):
+                worker.register_setup_event(self.db, 'secret', [article()])
+            with self.assertRaisesRegex(ValueError, 'wrong_brevo_organization'):
+                worker.deliver(self.db, 'secret', 7)
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0], 0)
+
+    def test_organization_pin_required(self):
+        with patch.dict(worker.os.environ, {'EXPECTED_BREVO_ORGANIZATION_ID': ''}):
+            with patch.object(worker, 'api', return_value={'email': 'nick@nickdiramio.com', 'organization_id': 'org-correct'}):
+                with self.assertRaisesRegex(ValueError, 'brevo_organization_pin_required'):
+                    worker.verified_account('secret')
 
 
 if __name__ == '__main__':

@@ -30,6 +30,10 @@ Variables:
 
 - `ANNOUNCEMENTS_ENABLED=false` until Brevo workflow and audience are verified.
 - `BREVO_API_KEY`: enter securely in the Railway Variables tab; never in Git/chat.
+- `EXPECTED_BREVO_ORGANIZATION_ID`: immutable organization ID verified from the intended
+  account's `/account` response. Required for setup and delivery; matching email alone
+  is insufficient because separate accounts can use the same email. A replaced key must
+  be checked against this ID. Setup registration history is scoped per organization.
 - `BREVO_ANNOUNCEMENT_LIST_ID`: the ID of the confirmed opt-in list approved for video notifications.
 - `ANNOUNCEMENT_STATE_DIR=/data` (optional; default).
 
