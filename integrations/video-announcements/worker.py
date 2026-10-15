@@ -180,6 +180,43 @@ def audience(key, list_id):
         offset += len(rows)
 
 
+def register_setup_event(db, key, articles):
+    """Register fields using only an existing owner contact, once, without a send API."""
+    state = db.execute("SELECT value FROM metadata WHERE key='setup_event'").fetchone()
+    if state:
+        log('setup_event_already_attempted', status=state[0])
+        return
+    account = api('/account', key)
+    if account.get('email', '').lower() != 'nick@nickdiramio.com':
+        raise ValueError('wrong_brevo_account')
+    contact = None
+    for email in ('nick@nickdiramio.com', 'nickdiramio@gmail.com'):
+        try:
+            candidate = api('/contacts/' + urllib.parse.quote(email, safe=''), key)
+            if candidate.get('id') and candidate.get('email', '').lower() == email:
+                contact = candidate
+                break
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+    if contact is None:
+        raise ValueError('existing_owner_contact_required_for_setup')
+    if not articles:
+        raise ValueError('setup_article_required')
+    data = dict(articles[0]['data'])
+    data.update(setup_only=True, announcement_id='setup-preview-v1')
+    data['video_title'] = '[Setup preview] ' + data['video_title']
+    # Do not retry a potentially accepted event after a timeout or container crash.
+    with db:
+        db.execute("INSERT INTO metadata VALUES ('setup_event','uncertain')")
+    api('/events', key, {'event_name': 'video_announcement_ready',
+                        'identifiers': {'contact_id': int(contact['id'])},
+                        'event_properties': data})
+    with db:
+        db.execute("UPDATE metadata SET value='registered' WHERE key='setup_event'")
+    log('setup_event_registered', setupOnly=True)
+
+
 def deliver(db, key, list_id, max_events=100):
     account = api('/account', key)
     if account.get('email', '').lower() != 'nick@nickdiramio.com':
@@ -203,6 +240,7 @@ def deliver(db, key, list_id, max_events=100):
         with db:
             db.execute("UPDATE deliveries SET status='uncertain' WHERE video_id=? AND contact_id=?", (vid, cid))
         data = json.loads(payload)
+        data['setup_only'] = False
         data['announcement_id'] = hashlib.sha256(f'{vid}:{cid}'.encode()).hexdigest()
         api('/events', key, {'event_name': 'video_announcement_ready',
                             'identifiers': {'contact_id': cid}, 'event_properties': data})
@@ -225,6 +263,13 @@ def main():
             articles = parse_feed(request(FEED))
             added = collect(db, articles)
             enabled = os.environ.get('ANNOUNCEMENTS_ENABLED') == 'true'
+            if os.environ.get('REGISTER_SETUP_EVENT') == 'true':
+                if enabled:
+                    raise ValueError('disable_delivery_before_setup')
+                key = os.environ.get('BREVO_API_KEY')
+                if not key:
+                    raise ValueError('brevo_key_required_for_setup')
+                register_setup_event(db, key, articles)
             accepted = 0
             if enabled:
                 key = os.environ.get('BREVO_API_KEY')

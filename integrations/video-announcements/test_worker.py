@@ -108,6 +108,38 @@ class WorkerTests(unittest.TestCase):
                 worker.deliver(self.db, 'secret', 7)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0], 0)
 
+    def test_setup_event_once_on_owner_contact_without_audience_lookup(self):
+        def setup_api(path, key, body=None):
+            if path == '/contacts/nick%40nickdiramio.com':
+                return {'id': 5, 'email': 'nick@nickdiramio.com'}
+            if path == '/account':
+                return {'email': 'nick@nickdiramio.com'}
+            if path == '/events':
+                return {}
+            raise AssertionError(path)
+        with patch.object(worker, 'api', side_effect=setup_api) as api:
+            worker.register_setup_event(self.db, 'secret', [article()])
+            worker.register_setup_event(self.db, 'secret', [article()])
+        events = [c for c in api.call_args_list if c.args[0] == '/events']
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].args[2]['identifiers'], {'contact_id': 5})
+        self.assertTrue(events[0].args[2]['event_properties']['setup_only'])
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM deliveries').fetchone()[0], 0)
+
+    def test_setup_timeout_not_retried(self):
+        def setup_api(path, key, body=None):
+            if path == '/account':
+                return {'email': 'nick@nickdiramio.com'}
+            if path.startswith('/contacts/'):
+                return {'id': 5, 'email': 'nick@nickdiramio.com'}
+            raise TimeoutError()
+        with patch.object(worker, 'api', side_effect=setup_api):
+            with self.assertRaises(TimeoutError):
+                worker.register_setup_event(self.db, 'secret', [article()])
+        with patch.object(worker, 'api') as api:
+            worker.register_setup_event(self.db, 'secret', [article()])
+            api.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

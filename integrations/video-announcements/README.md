@@ -40,6 +40,17 @@ infer consent from an arbitrary list. Never point it at an all-contacts/import l
 
 ## Brevo setup (not automated by this service)
 
+To make the event and its fields appear in Brevo, temporarily set
+`REGISTER_SETUP_EVENT=true` with `ANNOUNCEMENTS_ENABLED=false` and the Brevo workflow
+inactive. The next run registers one `setup_only=true` event on an existing owner
+contact (`nick@nickdiramio.com`, falling back to `nickdiramio@gmail.com`). It never
+creates contacts, looks up the subscriber audience, or uses an email sending endpoint.
+If neither owner address is a contact, setup fails with an explicit error. Success
+is recorded in persistent state so later polls do not repeat it. On success remove
+the setup flag. An uncertain attempt must be reconciled with Brevo before retrying.
+Add an event filter **setup_only equals false** to the production workflow; real
+announcements always carry `setup_only=false`.
+
 1. Create an inactive workflow with Custom event `video_announcement_ready`.
 2. Add the approved image-wordmark announcement HTML to its Send an email action.
 3. Select **Event that triggered this automation** for event data, not Latest instance.
